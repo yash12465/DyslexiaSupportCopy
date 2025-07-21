@@ -4,6 +4,13 @@ import { storage } from "./storage";
 import { insertNoteSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import multer from "multer";
+import path from "path";
+import { spawn } from "child_process";
+import fs from "fs";
+
+
+
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all notes
@@ -16,79 +23,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get a specific note by ID
-  app.get("/api/notes/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const note = await storage.getNote(id);
-      
-      if (!note) {
-        return res.status(404).json({ message: "Note not found" });
-      }
-      
-      res.json(note);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch note" });
-    }
-  });
+  const rawDir = path.join("uploads", "raw");
+if (!fs.existsSync(rawDir)) {
+  fs.mkdirSync(rawDir, { recursive: true });
+}
 
-  // Create a new note
-  app.post("/api/notes", async (req, res) => {
-    try {
-      const validatedData = insertNoteSchema.parse(req.body);
-      const note = await storage.createNote(validatedData);
-      res.status(201).json(note);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const validationError = fromZodError(error);
-        return res.status(400).json({ message: validationError.message });
-      }
-      res.status(500).json({ message: "Failed to create note" });
-    }
-  });
+const storageEngine = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, rawDir),
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  },
+});
 
-  // Update an existing note
-  app.put("/api/notes/:id", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const validatedData = insertNoteSchema.parse(req.body);
-      const updatedNote = await storage.updateNote(id, validatedData);
-      
-      if (!updatedNote) {
-        return res.status(404).json({ message: "Note not found" });
-      }
-      
-      res.json(updatedNote);
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const validationError = fromZodError(error);
-        return res.status(400).json({ message: validationError.message });
-      }
-      res.status(500).json({ message: "Failed to update note" });
-    }
-  });
+const upload = multer({ storage: storageEngine });
 
-  // Toggle favorite status
-  app.patch("/api/notes/:id/favorite", async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const { isFavorite } = req.body;
-      
-      const note = await storage.getNote(id);
-      if (!note) {
-        return res.status(404).json({ message: "Note not found" });
-      }
-      
-      const updatedNote = await storage.updateNote(id, { 
-        ...note,
-        isFavorite: Boolean(isFavorite)
-      });
-      
-      res.json(updatedNote);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update favorite status" });
-    }
+app.post("/api/recognize-text", upload.single("image"), (req, res) => {
+  const filePath = req.file?.path;
+  if (!filePath) {
+    return res.status(400).json({ message: "No image uploaded" });
+  }
+
+  console.log("[INFO] Image saved at:", filePath);
+  res.status(200).json({
+    message: "Image saved",
+    path: filePath,
   });
+});
+
 
   // Delete a note
   app.delete("/api/notes/:id", async (req, res) => {
