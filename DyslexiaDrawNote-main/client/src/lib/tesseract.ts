@@ -59,6 +59,23 @@ async function preprocessImage(imageData: string): Promise<string> {
     img.src = imageData;
   });
 }
+export async function recognizeText(imageDataUrl: string) {
+  const blob = await (await fetch(imageDataUrl)).blob();
+  const formData = new FormData();
+  formData.append("image", blob, "input.png");
+
+  const response = await fetch("/api/recognize-text", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("Recognition failed");
+  }
+
+  return await response.json();
+}
+
 
 // Format recognized text to standardized computer fonts
 function formatToStandardFont(text: string): string {
@@ -69,104 +86,4 @@ function formatToStandardFont(text: string): string {
     .trim();                    // Remove leading and trailing whitespace
 }
 
-export async function recognizeText(
-  imageData: string
-): Promise<RecognitionResult> {
-  try {
-    // Preprocess the image for better recognition
-    const processedImage = await preprocessImage(imageData);
-    
-    // Configure Tesseract with better settings for handwriting
-    const worker = await createWorker('eng');
-    
-    // Recognize text from the processed image
-    const result = await worker.recognize(processedImage);
-    await worker.terminate();
 
-    // Get the recognized text
-    const text = result.data.text;
-    
-    // Format text to look like computer font
-    const formattedText = formatToStandardFont(text);
-    
-    // Check for spelling errors
-    const words = text.split(/\s+/);
-    const suggestions: Array<{ original: string; correction: string }> = [];
-
-    // Enhanced list of common misspellings, especially for dyslexic users
-    const commonMisspellings: Record<string, string> = {
-      // Original list
-      developement: "development",
-      progres: "progress",
-      recieve: "receive",
-      freind: "friend",
-      thier: "their",
-      speling: "spelling",
-      occured: "occurred",
-      concieve: "conceive",
-      wierd: "weird",
-      acheive: "achieve",
-      seperate: "separate",
-      definately: "definitely",
-      accomodate: "accommodate",
-      untill: "until",
-      beleive: "believe",
-      existance: "existence",
-      goverment: "government",
-      enviroment: "environment",
-      occassion: "occasion",
-      dissapear: "disappear",
-      tommorow: "tomorrow",
-      begining: "beginning",
-      comming: "coming",
-      independant: "independent",
-      successfull: "successful",
-      
-      // Additional dyslexia-specific misspellings
-      becuase: "because",
-      beutiful: "beautiful",
-      diferent: "different",
-      frist: "first",
-      peice: "piece",
-      peopel: "people",
-      rember: "remember",
-      togehter: "together",
-      wich: "which",
-      writting: "writing",
-      acess: "access",
-      alot: "a lot",
-      alway: "always",
-      anwser: "answer",
-      befor: "before",
-      comand: "command",
-      grammer: "grammar",
-      litrally: "literally",
-      mispell: "misspell",
-      prefrence: "preference",
-      probabilty: "probability"
-    };
-
-    words.forEach(word => {
-      const cleanWord = word.toLowerCase().replace(/[^\w]/g, '');
-      if (commonMisspellings[cleanWord]) {
-        suggestions.push({
-          original: cleanWord,
-          correction: commonMisspellings[cleanWord]
-        });
-      }
-    });
-
-    return {
-      text,
-      suggestions,
-      formattedText
-    };
-  } catch (error) {
-    console.error('Text recognition error:', error);
-    return {
-      text: '',
-      suggestions: [],
-      formattedText: ''
-    };
-  }
-}

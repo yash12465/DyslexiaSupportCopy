@@ -10,6 +10,19 @@ interface TextRecognitionProps {
   canvasElement: HTMLCanvasElement | null;
   onTextRecognized?: (text: string) => void;
 }
+function getWhiteBackgroundImage(canvas: HTMLCanvasElement): string {
+  const tempCanvas = document.createElement('canvas');
+  const ctx = tempCanvas.getContext('2d')!;
+  tempCanvas.width = canvas.width;
+  tempCanvas.height = canvas.height;
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+  ctx.drawImage(canvas, 0, 0);
+
+  return tempCanvas.toDataURL('image/png');
+}
+
 
 const TextRecognition = ({ canvasElement, onTextRecognized }: TextRecognitionProps) => {
   const [recognizedText, setRecognizedText] = useState('');
@@ -29,7 +42,8 @@ const TextRecognition = ({ canvasElement, onTextRecognized }: TextRecognitionPro
       // Pre-process indicator
       setRecognitionProgress(10);
       
-      const imageData = canvasElement.toDataURL('image/png');
+      const imageData = getWhiteBackgroundImage(canvasElement);
+
       
       // Recognition in progress
       setRecognitionProgress(30);
@@ -127,23 +141,23 @@ const TextRecognition = ({ canvasElement, onTextRecognized }: TextRecognitionPro
           </div>
         )}
         
-        {suggestions.length > 0 && (
-          <>
-            <Separator className="my-3" />
-            <h4 className="font-dyslexic font-semibold text-sm text-gray-600 mb-2">
-              Suggested Corrections:
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map(({ original, correction }, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  className="font-dyslexic bg-accent bg-opacity-10 text-accent hover:bg-opacity-20 text-sm"
-                  onClick={() => applySuggestion(original, correction)}
-                >
-                  "{original}" → "{correction}"
-                </Button>
-              ))}
+        {Array.isArray(suggestions) && suggestions.length > 0 && (
+  <>
+    <Separator className="my-3" />
+    <h4 className="font-dyslexic font-semibold text-sm text-gray-600 mb-2">
+      Suggested Corrections:
+    </h4>
+    <div className="flex flex-wrap gap-2">
+      {suggestions.map(({ original, correction }, index) => (
+        <Button
+          key={index}
+          variant="outline"
+          className="font-dyslexic bg-accent bg-opacity-10 text-accent hover:bg-opacity-20 text-sm"
+          onClick={() => applySuggestion(original, correction)}
+        >
+          "{original}" → "{correction}"
+        </Button>
+      ))}
             </div>
           </>
         )}
