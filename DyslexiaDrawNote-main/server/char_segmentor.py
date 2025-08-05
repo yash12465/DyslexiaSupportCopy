@@ -16,6 +16,7 @@ def rotate_image(image, angle):
         -------
             rotated image as np.array
     """
+    print("rotate_image is called in char_segmentor")
     # create an tuple that contains height/2, width/2
     image_center = tuple(np.array(image.shape[1::-1]) / 2) 
     # rot_mat 2x3 rotation mattrix
@@ -26,6 +27,7 @@ def rotate_image(image, angle):
     return result
 
 def read_image(img_path):
+    print("read_image is called in char_segmentor")
     image = cv2.imread(img_path)
 
     scale_percent = 18  # percent of original size
@@ -41,6 +43,7 @@ def save_img(dir_path,filename,img):
         filename - requires a valid image format
         img - image to be saved
     """
+    print("save_img is called in char_segmentor")
     file_path = os.path.join(dir_path,filename)
     cv2.imwrite(file_path,img)
 
@@ -49,6 +52,7 @@ def find_text_angle(dilated_img,org_img):
         org_img - original image
         img - dilated img
     """
+    print("find_text_angle is called in char_segmentor")
     lines = cv2.HoughLinesP(dilated_img,rho=1,theta=np.pi/180,threshold=30,minLineLength=5,maxLineGap=20)
 
     nb_lines = len(lines)

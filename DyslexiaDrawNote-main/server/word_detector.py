@@ -90,17 +90,13 @@ def _compute_kernel(kernel_size: int,
     return kernel
 
 
-def prepare_img(img: np.ndarray,
-                height: int) -> np.ndarray:
+def prepare_img(img: np.ndarray) -> np.ndarray:
     """Convert image to grayscale image (if needed) and resize to given height."""
     assert img.ndim in (2, 3)
-    assert height > 0
     assert img.dtype == np.uint8
     if img.ndim == 3:
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    h = img.shape[0]
-    factor = height / h
-    return cv2.resize(img, dsize=None, fx=factor, fy=factor)
+    return img
 
 
 def _cluster_lines(detections: List[DetectorRes],
@@ -161,3 +157,21 @@ def sort_multiline(detections: List[DetectorRes],
 def sort_line(detections: List[DetectorRes]) -> List[List[DetectorRes]]:
     """Sort the list of detections according to x-coordinates of word centers."""
     return [sorted(detections, key=lambda det: det.bbox.x + det.bbox.w / 2)]
+
+
+def visualize_detections(img_gray, lines, output_path="debug_lines_words.png"):
+    # Convert grayscale to BGR for colored drawings
+    vis_img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255),
+              (255, 255, 0), (255, 0, 255), (0, 255, 255)]
+
+    for line_idx, line in enumerate(lines):
+        color = colors[line_idx % len(colors)]
+        for word in line:
+            x, y, w, h = word.bbox.x, word.bbox.y, word.bbox.w, word.bbox.h
+            cv2.rectangle(vis_img, (x, y), (x + w, y + h), color, 2)
+            cv2.putText(vis_img, f"L{line_idx}", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
+    cv2.imwrite(output_path, vis_img)
+    print(f"[DEBUG] Saved segmentation visualization to {output_path}")

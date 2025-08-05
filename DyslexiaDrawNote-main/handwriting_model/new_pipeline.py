@@ -23,10 +23,12 @@ def pipeline(input_path, output_base="output"):
     lines_dir = os.path.join(output_base, 'lines')
     words_dir = os.path.join(output_base, 'words')
     chars_dir = os.path.join(output_base, 'chars')
+    segment_lines_dir=os.path.join(output_base,'segment_lines')
     ensure_dir(raw_dir)
     ensure_dir(lines_dir)
     ensure_dir(words_dir)
     ensure_dir(chars_dir)
+    ensure_dir(segment_lines_dir)
     
 
 
@@ -36,7 +38,11 @@ def pipeline(input_path, output_base="output"):
 
     # Step 2: Prepare image and detect words across page
     img_raw = cv2.imread(raw_dest)
-    img_gray = prepare_img(img_raw, height=800)
+    img_gray = prepare_img(img_raw)
+    #cv2.imwrite("original_debug.png", img_raw)
+    #cv2.imwrite("resized_debug.png", img_gray)
+    #print("[INFO] Saved original and resized images to disk.")
+
 
     print(f"[DEBUG] Raw image shape: {img_raw.shape}")
     print(f"[DEBUG] Prepared grayscale shape: {img_gray.shape}")
@@ -47,6 +53,9 @@ def pipeline(input_path, output_base="output"):
     min_area=400)
     line_groups = _cluster_lines(detections)  # returns List[List[DetectorRes]]
     lines = [sort_multiline(line)[0] for line in line_groups if len(line) > 0]
+    # visualize before character segmentation
+    visualize_detections(img_gray, lines, output_path=os.path.join(segment_lines_dir, "segmentation_debug.png"))
+
 
     print(f"[DEBUG] Found {len(detections)} total word-like regions")
     for i, det in enumerate(detections):
@@ -106,12 +115,54 @@ def pipeline(input_path, output_base="output"):
                 'flips': [int(c['flip_binary'] > c['flip_emnist']) for c in char_results],
                 'chars': char_results
             })
+    # COMBINED VISUALIZATION: Lines → Words → Characters
+    vis_img = cv2.cvtColor(img_gray.copy(), cv2.COLOR_GRAY2BGR)
+
+    for item in results:
+        line_idx = item['line']
+        word_idx = item['word']
+        try:
+            word_box = lines[line_idx][word_idx].bbox
+        except IndexError:
+            continue
+        xw, yw, ww, hw = word_box.x, word_box.y, word_box.w, word_box.h
+        cv2.rectangle(vis_img, (xw, yw), (xw+ww, yw+hw), (0, 255, 0), 2)
+        cv2.putText(vis_img, f"L{line_idx}W{word_idx}", (xw, yw - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,255,0), 1)
+
+        chars = item['chars']
+        char_w = ww // max(len(chars), 1)
+        for char in chars:
+            idx = char['char_idx']
+            label = char['label']
+            flipped = int(char['flip_binary'] > char['flip_emnist'])
+            color = (0,0,255) if flipped else (255,0,0)
+            xc = xw + idx * char_w
+            cv2.rectangle(vis_img, (xc, yw), (xc + char_w, yw + hw), color, 1)
+            cv2.putText(vis_img, label, (xc + 2, yw + 12), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+    # Save combined annotated image
+    cv2.imwrite(os.path.join(segment_lines_dir, 'annotated_all_levels.png'), vis_img)
+    print("[DEBUG] Saved full visual annotated result to 'annotated_all_levels.png'")
 
     # Save overall results
     with open(os.path.join(output_base, 'results.json'), 'w') as f:
         json.dump(results, f, indent=2)
 
     return results
+
+
+def visualize_detections(img_gray, lines, output_path="segmentation_debug.png"):
+    vis_img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+    colors = [(255,0,0),(0,255,0),(0,0,255),(255,255,0),(255,0,255),(0,255,255)]
+    for line_idx, line in enumerate(lines):
+        color = colors[line_idx % len(colors)]
+        for word in line:
+            x,y,w,h = word.bbox.x, word.bbox.y, word.bbox.w, word.bbox.h
+            cv2.rectangle(vis_img,(x,y),(x+w,y+h),color,2)
+            cv2.putText(vis_img, f"L{line_idx}", (x, y-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+    cv2.imwrite(output_path, vis_img)
+    print(f"[DEBUG] Saved segmentation visualization to {output_path}")
 
 
 if __name__ == '__main__':
