@@ -4,8 +4,11 @@ import { storage } from "./storage";
 import { insertNoteSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import ocrRoutes from "./routes/ocrRoutes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Register OCR routes
+  app.use('/api/ocr', ocrRoutes);
   // Get all notes
   app.get("/api/notes", async (req, res) => {
     try {
