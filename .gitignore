@@ -1,1 +1,16 @@
-/mnist_model/
+# Discard entire mnist_model folder
+mnist_model/
+
+# DyslexiaDrawNote-main
+DyslexiaDrawNote-main/node_modules/
+DyslexiaDrawNote-main/.env
+DyslexiaDrawNote-main/uploads/
+DyslexiaDrawNote-main/handwriting_model/output/
+
+# Python caches
+**/__pycache__/
+*.py[cod]
+
+# OS / editor files (optional)
+.DS_Store
+*.swp
