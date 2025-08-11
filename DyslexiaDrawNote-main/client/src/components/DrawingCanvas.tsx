@@ -19,7 +19,13 @@ import { Badge } from '@/components/ui/badge';
 interface DrawingCanvasProps {
   initialContent?: string;
   onContentChange?: (content: string) => void;
+  onStrokeDataChange?: (strokeData: StrokePoint[]) => void;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
+  backgroundStyle?: 'blank' | 'lined' | 'graph';
+  lineSpacing?: 'single' | 'wide' | 'college';
+  enableShapeCorrection?: boolean;
+  enableInstantCorrection?: boolean;
+  mode?: 'free' | 'notebook' | 'training';
   backgroundStyle?: 'blank' | 'lined' | 'graph';
   lineSpacing?: 'single' | 'wide' | 'college';
   enableShapeCorrection?: boolean;
@@ -33,9 +39,24 @@ interface Point {
   pressure?: number; // For pen pressure sensitivity
 }
 
+interface StrokePoint {
+  x: number;
+  y: number;
+  time: number;
+  pen_down: boolean;
+  pressure?: number;
+  stroke_id?: string;
+}
+
+interface StrokeData {
+  points: StrokePoint[];
+  startTime: number;
+}
+
 const DrawingCanvas = ({ 
   initialContent,
   onContentChange,
+  onStrokeDataChange,
   onCanvasReady,
   backgroundStyle = 'blank',
   lineSpacing = 'single',
@@ -54,6 +75,105 @@ const DrawingCanvas = ({
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [isPenTabletDetected, setIsPenTabletDetected] = useState(false);
+  
+  // Stroke tracking state
+  const [allStrokes, setAllStrokes] = useState<StrokePoint[]>([]);
+  const [currentStroke, setCurrentStroke] = useState<StrokePoint[]>([]);
+  const [strokeStartTime, setStrokeStartTime] = useState<number>(0);
+  const [currentStrokeId, setCurrentStrokeId] = useState<string>('');
+  
+  // State for detecting and auto-correcting shapes
+  const [currentShape, setCurrentShape] = useState<{
+    type: 'line' | 'rectangle' | 'circle' | 'none';
+    startPoint: Point | null;
+    points: Point[];
+  }>({
+    type: 'none',
+    startPoint: null,
+    points: []
+  });
+  
+  // Draw lined paper background
+  const drawLinedPaper = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    ctx.save();
+    
+    // Line spacing based on preference
+    let lineSpacingPx = 30; // default single line
+    if (lineSpacing === 'wide') {
+      lineSpacingPx = 45;
+    } else if (lineSpacing === 'college') {
+      lineSpacingPx = 25;
+    }
+    
+    // Draw horizontal lines
+    ctx.beginPath();
+    ctx.strokeStyle = "#e6e6ff"; // Light blue lines
+    ctx.lineWidth = 1;
+    
+    for (let y = lineSpacingPx; y < height; y += lineSpacingPx) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    
+    // Add a red margin line (left)
+    if (mode === 'notebook') {
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.strokeStyle = "#ffcccc"; // Light red
+      ctx.lineWidth = 1;
+      ctx.moveTo(40, 0);
+      ctx.lineTo(40, height);
+    }
+    
+    ctx.stroke();
+    ctx.restore();
+  };
+  
+  // Draw graph paper background
+  const drawGraphPaper = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    ctx.save();
+    
+    const gridSize = 20;
+    
+    // Draw grid
+    ctx.beginPath();
+    ctx.strokeStyle = "#e6e6e6"; // Light gray lines
+    ctx.lineWidth = 0.5;
+    
+    // Vertical lines
+    for (let x = gridSize; x < width; x += gridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+    
+    // Horizontal lines
+    for (let y = gridSize; y < height; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    
+    ctx.stroke();
+    
+    // Add darker lines for main grid
+    ctx.beginPath();
+    ctx.strokeStyle = "#cccccc"; // Darker gray for main grid
+    ctx.lineWidth = 1;
+    
+    // Vertical main lines
+    for (let x = gridSize * 5; x < width; x += gridSize * 5) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+    
+    // Horizontal main lines
+    for (let y = gridSize * 5; y < height; y += gridSize * 5) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    
+    ctx.stroke();
+    ctx.restore();
+  };
   
   // State for detecting and auto-correcting shapes
   const [currentShape, setCurrentShape] = useState<{
@@ -168,6 +288,8 @@ const DrawingCanvas = ({
         }
       } else {
         drawCanvasBackground();
+      } else {
+        drawCanvasBackground();
       }
     };
     
@@ -187,6 +309,7 @@ const DrawingCanvas = ({
       img.src = initialContent;
     } else {
       // Save initial blank state with background
+      drawCanvasBackground(); with background
       drawCanvasBackground();
       saveHistoryState();
     }
@@ -225,6 +348,14 @@ const DrawingCanvas = ({
       touchDrawing = true;
       touchLastPoint = point;
       
+      // Start stroke tracking
+      const newStrokeId = `stroke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      setCurrentStrokeId(newStrokeId);
+      setStrokeStartTime(Date.now());
+      
+      const strokePoint = createStrokePoint(point.x, point.y, true, point.pressure);
+      setCurrentStroke([strokePoint]);
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
         configureContext(ctx);
@@ -251,6 +382,10 @@ const DrawingCanvas = ({
         pressure: 1
       };
       
+      // Add stroke point
+      const strokePoint = createStrokePoint(currentPoint.x, currentPoint.y, true, currentPoint.pressure);
+      setCurrentStroke(prev => [...prev, strokePoint]);
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
         configureContext(ctx);
@@ -268,7 +403,23 @@ const DrawingCanvas = ({
       
       if (touchDrawing) {
         touchDrawing = false;
+        
+        // Add final pen_down: false point
+        if (touchLastPoint) {
+          const finalStrokePoint = createStrokePoint(touchLastPoint.x, touchLastPoint.y, false, 1);
+          const updatedStroke = [...currentStroke, finalStrokePoint];
+          const newAllStrokes = [...allStrokes, ...updatedStroke];
+          
+          setAllStrokes(newAllStrokes);
+          
+          // Notify parent of stroke data change
+          if (onStrokeDataChange) {
+            onStrokeDataChange(newAllStrokes);
+          }
+        }
+        
         touchLastPoint = null;
+        setCurrentStroke([]);
         saveHistoryState();
       }
     };
@@ -292,6 +443,11 @@ const DrawingCanvas = ({
       
       // Disable all default touch behaviors completely
       canvas.style.touchAction = 'none';
+      canvas.style.userSelect = 'none';
+      canvas.style.webkitUserSelect = 'none';
+      canvas.style.webkitTouchCallout = 'none';
+      canvas.style.webkitUserDrag = 'none';
+      
       canvas.style.userSelect = 'none';
       canvas.style.webkitUserSelect = 'none';
       (document.body.style as any).webkitTouchCallout = 'none';
@@ -318,6 +474,10 @@ const DrawingCanvas = ({
         canvas.removeEventListener('pointerup', handlePointerUp);
         canvas.removeEventListener('pointerout', handlePointerUp);
         canvas.removeEventListener('pointercancel', handlePointerUp);
+        canvas.removeEventListener('touchstart', handleTouchStart);
+        canvas.removeEventListener('touchmove', handleTouchMove);
+        canvas.removeEventListener('touchend', handleTouchEnd);
+        canvas.removeEventListener('touchcancel', handleTouchEnd);
         canvas.removeEventListener('touchstart', handleTouchStart);
         canvas.removeEventListener('touchmove', handleTouchMove);
         canvas.removeEventListener('touchend', handleTouchEnd);
@@ -400,11 +560,26 @@ const DrawingCanvas = ({
     if (!ctx) return;
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Clear stroke data
+    setAllStrokes([]);
+    setCurrentStroke([]);
+    if (onStrokeDataChange) {
+      onStrokeDataChange([]);
+    }
+    
     saveHistoryState();
   };
   
   // Pointer events handlers (for pen tablet support)
   const handlePointerDown = (e: PointerEvent) => {
+    // Skip all touch-based pointer events completely
+    if (e.pointerType === 'touch') {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    
     // Skip all touch-based pointer events completely
     if (e.pointerType === 'touch') {
       e.preventDefault();
@@ -432,6 +607,23 @@ const DrawingCanvas = ({
       setCurrentTool('stylus');
     }
     
+    // Start stroke tracking
+    const newStrokeId = `stroke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setCurrentStrokeId(newStrokeId);
+    setStrokeStartTime(Date.now());
+    
+    const strokePoint = createStrokePoint(point.x, point.y, true, point.pressure);
+    setCurrentStroke([strokePoint]);
+    
+    // Store the start point for shape detection
+    if (enableShapeCorrection && mode === 'free') {
+      setCurrentShape({
+        type: 'none',
+        startPoint: point,
+        points: [point]
+      });
+    }
+    
     // Store the start point for shape detection
     if (enableShapeCorrection && mode === 'free') {
       setCurrentShape({
@@ -447,12 +639,20 @@ const DrawingCanvas = ({
     const ctx = canvas.getContext('2d');
     if (ctx) {
       configureContext(ctx);
+      configureContext(ctx);
       ctx.beginPath();
       drawPoint(ctx, point);
     }
   };
   
   const handlePointerMove = (e: PointerEvent) => {
+    // Skip all touch-based pointer events completely
+    if (e.pointerType === 'touch') {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    
     // Skip all touch-based pointer events completely
     if (e.pointerType === 'touch') {
       e.preventDefault();
@@ -474,6 +674,18 @@ const DrawingCanvas = ({
       y: e.clientY - rect.top,
       pressure: e.pressure || 1
     };
+    
+    // For shape correction, collect points during drawing
+    if (enableShapeCorrection && mode === 'free') {
+      setCurrentShape(prev => ({
+        ...prev,
+        points: [...prev.points, point]
+      }));
+    }
+    
+    // Add stroke point
+    const strokePoint = createStrokePoint(point.x, point.y, true, point.pressure);
+    setCurrentStroke(prev => [...prev, strokePoint]);
     
     // For shape correction, collect points during drawing
     if (enableShapeCorrection && mode === 'free') {
@@ -517,6 +729,33 @@ const DrawingCanvas = ({
     }
   };
   
+  // Function to draw the canvas background
+  const drawCanvasBackground = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear the background first
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw the selected background
+    switch(backgroundStyle) {
+      case 'lined':
+        drawLinedPaper(ctx, canvas.width, canvas.height);
+        break;
+      case 'graph':
+        drawGraphPaper(ctx, canvas.width, canvas.height);
+        break;
+      case 'blank':
+      default:
+        // Already filled with white
+        break;
+    }
+  };
+  
   const handlePointerUp = (e: PointerEvent) => {
     // Skip all touch-based pointer events completely
     if (e.pointerType === 'touch') {
@@ -531,13 +770,130 @@ const DrawingCanvas = ({
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
       }
       
+      // Add final pen_down: false point
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const finalPoint: Point = {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+          pressure: e.pressure || 1
+        };
+        
+        const finalStrokePoint = createStrokePoint(finalPoint.x, finalPoint.y, false, finalPoint.pressure);
+        const updatedStroke = [...currentStroke, finalStrokePoint];
+        const newAllStrokes = [...allStrokes, ...updatedStroke];
+        
+        setAllStrokes(newAllStrokes);
+        
+        // Notify parent of stroke data change
+        if (onStrokeDataChange) {
+          onStrokeDataChange(newAllStrokes);
+        }
+      }
+      
+      // If shape correction is enabled, try to detect and correct shapes
+      if (enableShapeCorrection && mode === 'free') {
+        detectAndCorrectShape();
+      }
+      
       // If shape correction is enabled, try to detect and correct shapes
       if (enableShapeCorrection && mode === 'free') {
         detectAndCorrectShape();
       }
       
       setIsDrawing(false);
+      setCurrentStroke([]);
       saveHistoryState();
+    }
+  };
+  
+  // Function to detect and correct drawn shapes
+  const detectAndCorrectShape = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // We need at least the current history state to analyze
+    if (historyIndex < 0 || !history[historyIndex]) return;
+    
+    // Get the current drawing's path points
+    // For a simple implementation, we'll detect basic shapes
+    // like lines, rectangles and circles based on start and end points
+    
+    // This is a simplified detection algorithm
+    // A real implementation would analyze the entire path and use ML algorithms
+    
+    // For demonstration, we'll implement a basic straight line detector
+    // If the user draws a nearly straight line, we'll correct it to a perfect line
+    
+    const startX = currentShape.startPoint?.x || 0;
+    const startY = currentShape.startPoint?.y || 0;
+    const endX = lastPosition.x;
+    const endY = lastPosition.y;
+    
+    // Calculate distance between start and end points
+    const distance = Math.sqrt(
+      Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2)
+    );
+    
+    // If the distance is significant (not just a dot)
+    if (distance > 20) {
+      // Check if it's a straight line (horizontal or vertical)
+      const isHorizontal = Math.abs(endY - startY) < 15;  // Within 15px
+      const isVertical = Math.abs(endX - startX) < 15;    // Within 15px
+      
+      if (isHorizontal) {
+        // Restore canvas to before this stroke
+        if (historyIndex > 0) {
+          ctx.putImageData(history[historyIndex - 1].imageData, 0, 0);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          drawCanvasBackground();
+        }
+        
+        // Draw a perfect horizontal line
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = penColor;
+        ctx.lineWidth = penSize;
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, startY);
+        ctx.stroke();
+        ctx.restore();
+        
+        return;
+      }
+      
+      if (isVertical) {
+        // Restore canvas to before this stroke
+        if (historyIndex > 0) {
+          ctx.putImageData(history[historyIndex - 1].imageData, 0, 0);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          drawCanvasBackground();
+        }
+        
+        // Draw a perfect vertical line
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = penColor;
+        ctx.lineWidth = penSize;
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(startX, endY);
+        ctx.stroke();
+        ctx.restore();
+        
+        return;
+      }
+      
+      // Check if it's a rectangle
+      // For demonstration, this is a very simplified detector
+      // A real implementation would analyze the entire path
+      
+      // For circles, check if the path roughly forms a circle
+      // This would require more sophisticated analysis
     }
   };
   
@@ -644,6 +1000,14 @@ const DrawingCanvas = ({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
+    // Start stroke tracking
+    const newStrokeId = `stroke_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setCurrentStrokeId(newStrokeId);
+    setStrokeStartTime(Date.now());
+    
+    const strokePoint = createStrokePoint(x, y, true, 1);
+    setCurrentStroke([strokePoint]);
+    
     setLastPosition({ x, y });
     
     // Start a new path
@@ -669,6 +1033,10 @@ const DrawingCanvas = ({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
+    // Add stroke point
+    const strokePoint = createStrokePoint(x, y, true, 1);
+    setCurrentStroke(prev => [...prev, strokePoint]);
+    
     // Draw line from last position to current position
     drawLine(ctx, lastPosition, { x, y });
     
@@ -677,7 +1045,20 @@ const DrawingCanvas = ({
   
   const stopDrawing = () => {
     if (isDrawing) {
+      // Add final pen_down: false point
+      const finalStrokePoint = createStrokePoint(lastPosition.x, lastPosition.y, false, 1);
+      const updatedStroke = [...currentStroke, finalStrokePoint];
+      const newAllStrokes = [...allStrokes, ...updatedStroke];
+      
+      setAllStrokes(newAllStrokes);
+      
+      // Notify parent of stroke data change
+      if (onStrokeDataChange) {
+        onStrokeDataChange(newAllStrokes);
+      }
+      
       setIsDrawing(false);
+      setCurrentStroke([]);
       saveHistoryState();
     }
   };
@@ -747,6 +1128,19 @@ const DrawingCanvas = ({
       return penSize * factor;
     }
     return penSize;
+  };
+
+  // Create stroke point helper
+  const createStrokePoint = (x: number, y: number, penDown: boolean, pressure?: number): StrokePoint => {
+    const now = Date.now();
+    return {
+      x,
+      y,
+      time: strokeStartTime > 0 ? now - strokeStartTime : 0,
+      pen_down: penDown,
+      pressure: pressure || 1,
+      stroke_id: currentStrokeId
+    };
   };
   
   // Handle tool changes
