@@ -4,3 +4,77 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.tmp/
+
+# Vite cache
+.vite/
+vite.config.ts.timestamp-*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# macOS
+.DS_Store
+
+# Replit local files
+.local/
+.replit
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+
+# Model & large binary outputs
+ocr-model/
+ocr-training-data/
+attached_assets/
+uploads/
+*.bin
+*.h5
+*.ckpt
+*.pb
+
+# TensorFlow or training intermediates
+checkpoint/
+*.tfrecord
+*.tflite
+
+# Logs
+logs/
+*.log
+nohup.out
+
+# Images generated during testing/training
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# OS-specific / editor-specific files
+Thumbs.db
+.idea/
+.vscode/
+*.swp

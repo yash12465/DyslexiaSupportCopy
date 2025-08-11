@@ -1,5 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass
+import os
 from typing import List
 
 import cv2
@@ -19,6 +20,46 @@ class BBox:
 class DetectorRes:
     img: np.ndarray
     bbox: BBox
+
+def detect_debug(img: np.ndarray,
+                 debug_dir,
+                 kernel_size: int,
+                 sigma: float,
+                 theta: float,
+                 min_area: int) -> List:
+    dir = os.path.join(debug_dir,'detect')
+    os.makedirs(dir, exist_ok=True)
+    # Save original
+    cv2.imwrite(os.path.join(dir, "step0_original.png"), img)
+
+
+    # 1️⃣ Apply filter kernel
+    kernel = _compute_kernel(kernel_size, sigma, theta)
+    img_filtered = cv2.filter2D(img, -1, kernel, borderType=cv2.BORDER_REPLICATE).astype(np.uint8)
+    cv2.imwrite(os.path.join(dir, "step1_filtered.png"), img_filtered)
+
+    # 2️⃣ Threshold
+    img_thres = 255 - cv2.threshold(img_filtered, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+    cv2.imwrite(os.path.join(dir, "step2_thres.png"), img_thres)
+
+    # 3️⃣ Find contours
+    res = []
+    components = cv2.findContours(img_thres, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
+
+    # Create copy for contour visualization
+    contour_vis = cv2.cvtColor(img.copy(), cv2.COLOR_GRAY2BGR)
+    for c in components:
+        if cv2.contourArea(c) < min_area:
+            continue
+        x, y, w, h = cv2.boundingRect(c)
+        crop = img[y:y + h, x:x + w]
+        res.append(((x, y, w, h), crop))
+        cv2.rectangle(contour_vis, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    # Save contour visualization
+    cv2.imwrite(os.path.join(dir, "step3_bounding boxes.png"), contour_vis)
+
+    return res
 
 
 def detect(img: np.ndarray,
@@ -40,8 +81,6 @@ def detect(img: np.ndarray,
     Returns:
         List of DetectorRes instances, each containing the bounding box and the word image.
     """
-    assert img.ndim == 2
-    assert img.dtype == np.uint8
 
     # apply filter kernel
     kernel = _compute_kernel(kernel_size, sigma, theta)

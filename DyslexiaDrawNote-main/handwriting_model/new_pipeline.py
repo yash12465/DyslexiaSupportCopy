@@ -6,8 +6,8 @@ import json
 # Add project root to path for module imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from server.word_detector import prepare_img, detect, sort_multiline ,_cluster_lines
-from server.char_segmentor import segment_char_images
+from server.word_detector import detect_debug, prepare_img, detect, sort_multiline ,_cluster_lines
+from server.char_segmentor import segment_char_images, segment_char_images_debug
 from handwriting_model.emnist_model import predict_emnist
 from handwriting_model.reversal_model import predict_reversal
 
@@ -24,6 +24,8 @@ def pipeline(input_path, output_base="output"):
     words_dir = os.path.join(output_base, 'words')
     chars_dir = os.path.join(output_base, 'chars')
     segment_lines_dir=os.path.join(output_base,'segment_lines')
+    debug_dir=os.path.join(output_base,'debug')
+    ensure_dir(debug_dir)
     ensure_dir(raw_dir)
     ensure_dir(lines_dir)
     ensure_dir(words_dir)
@@ -48,6 +50,10 @@ def pipeline(input_path, output_base="output"):
     print(f"[DEBUG] Prepared grayscale shape: {img_gray.shape}")
 
     detections = detect(img_gray, kernel_size=151,
+    sigma=6,
+    theta=10,
+    min_area=400)
+    detect_debug(img_gray,debug_dir, kernel_size=151,
     sigma=6,
     theta=10,
     min_area=400)
@@ -89,6 +95,7 @@ def pipeline(input_path, output_base="output"):
             cv2.imwrite(word_img_path, crop)
 
             # Step 3: Segment characters in word
+            segment_char_images_debug(crop,debug_dir,word_idx)
             chars = segment_char_images(crop)
             char_results = []
             for char_idx, char in enumerate(chars):

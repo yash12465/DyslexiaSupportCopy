@@ -150,7 +150,7 @@ def segment_char_images(img):
         Segments individual characters from a word image and returns them as a list of image arrays.
         This function is used in pipeline inference, so it returns character images rather than saving them.
     """
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+    gray = img
     blur = cv2.medianBlur(gray, 7)
     thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 7, 11)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 7))
@@ -167,6 +167,73 @@ def segment_char_images(img):
         x, y, w, h = cv2.boundingRect(c)
         roi = gray[y:y + h, x:x + w]
         char_imgs.append(roi)
+
+    return char_imgs
+
+def segment_char_images_debug(img, base_dir, word_id):
+    """
+    Segments characters from a word image and saves debug outputs
+    in debug/segment_char/<word_id>/ for each word separately.
+    """
+    # Create base output folder for this word
+    word_dir = os.path.join(base_dir, f"word_{word_id}")
+    os.makedirs(word_dir, exist_ok=True)
+
+    # 1️⃣ Grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+    cv2.imwrite(os.path.join(word_dir, "step1_gray.png"), gray)
+
+    # 2️⃣ Blur (optional, helps reduce noise)
+    blur = cv2.medianBlur(gray, 5)
+    cv2.imwrite(os.path.join(word_dir, "step2_blur.png"), blur)
+
+    # 3️⃣ Adaptive Threshold (larger block size for handwriting)
+    thresh = cv2.adaptiveThreshold(
+        blur, 255,
+        cv2.ADAPTIVE_THRESH_MEAN_C,
+        cv2.THRESH_BINARY_INV,
+        15, 10
+    )
+    cv2.imwrite(os.path.join(word_dir, "step3_threshold.png"), thresh)
+
+    # 4️⃣ Morphological closing to connect broken strokes
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel_close, iterations=1)
+    cv2.imwrite(os.path.join(word_dir, "step4_closing.png"), closed)
+
+    # 5️⃣ Dilation (bigger kernel to ensure one contour per letter)
+    kernel_dilate = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    dilate = cv2.dilate(closed, kernel_dilate, iterations=1)
+    cv2.imwrite(os.path.join(word_dir, "step5_dilate.png"), dilate)
+
+    # 6️⃣ Find contours
+    cnts = cv2.findContours(dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+
+    # Filter small noise by area
+    min_area = 50
+    cnts = [c for c in cnts if cv2.contourArea(c) >= min_area]
+
+    # Sort contours left to right
+    cnts = sorted(cnts, key=lambda c: cv2.boundingRect(c)[0])
+
+    contour_vis = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    char_imgs = []
+
+    # Save each character in its own file
+    for i, c in enumerate(cnts, start=1):
+        x, y, w, h = cv2.boundingRect(c)
+        roi = gray[y:y + h, x:x + w]
+        char_imgs.append(roi)
+
+        char_filename = os.path.join(word_dir, f"letter_{i}.png")
+        cv2.imwrite(char_filename, roi)
+
+        # Draw bounding box
+        cv2.rectangle(contour_vis, (x, y), (x + w, y + h), (0, 255, 0), 1)
+
+    # Save contour visualization
+    cv2.imwrite(os.path.join(word_dir, "step6_all_contours.png"), contour_vis)
 
     return char_imgs
 
