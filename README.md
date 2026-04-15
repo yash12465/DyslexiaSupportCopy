@@ -20,6 +20,8 @@ Install (one command):
 cd DyslexiaDrawNote-main && npm install --ignore-scripts
 ```
 
+(`--ignore-scripts` keeps install stable on macOS when optional native postinstall steps are unavailable; runtime still works.)
+
 Run (one command):
 
 ```bash

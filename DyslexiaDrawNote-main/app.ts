@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from "uuid";
 
 /**
  * ------------------------------------------------------------
- * DyslexiaSupportCopy single-file runtime
+ * DyslexiaDrawNote single-file runtime
  * ------------------------------------------------------------
  * This file consolidates runtime backend features so the app can run
  * out-of-the-box via one entrypoint command.
@@ -44,6 +44,25 @@ const DEFAULT_CONFIG = {
   maxAnalysisTextLength: 10000,
   dictionaryApiTimeoutMs: 1000,
 };
+
+function resolveWithin(baseDir: string, inputPath: string) {
+  const resolved = path.resolve(baseDir, path.basename(inputPath));
+  const normalizedBase = path.resolve(baseDir);
+
+  if (resolved !== normalizedBase && !resolved.startsWith(`${normalizedBase}${path.sep}`)) {
+    throw new Error("Invalid file path.");
+  }
+
+  return resolved;
+}
+
+function isWithinAllowedRoots(candidatePath: string, allowedRoots: string[]) {
+  const resolvedCandidate = path.resolve(candidatePath);
+  return allowedRoots.some((root) => {
+    const normalizedRoot = path.resolve(root);
+    return resolvedCandidate === normalizedRoot || resolvedCandidate.startsWith(`${normalizedRoot}${path.sep}`);
+  });
+}
 
 function log(message: string, source = "app") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -76,7 +95,7 @@ function ensureStartupFilesAndDirectories() {
   }
 
   if (!fs.existsSync(PATHS.configFile)) {
-    fs.writeFileSync(PATHS.configFile, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`, "utf8");
+    fs.writeFileSync(PATHS.configFile, JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n", "utf8");
     log("Created default config: config/defaults.json", "startup");
   }
 
@@ -425,7 +444,15 @@ async function createOcrModel() {
   const tf = await getTf();
   const model = tf.sequential();
 
-  model.add(tf.layers.conv2d({ inputShape: [IMAGE_SIZE, IMAGE_SIZE, 1], filters: 32, kernelSize: 3, activation: "relu", padding: "same" }));
+  model.add(
+    tf.layers.conv2d({
+      inputShape: [IMAGE_SIZE, IMAGE_SIZE, 1],
+      filters: 32,
+      kernelSize: 3,
+      activation: "relu",
+      padding: "same",
+    }),
+  );
   model.add(tf.layers.maxPooling2d({ poolSize: 2, strides: 2 }));
   model.add(tf.layers.conv2d({ filters: 64, kernelSize: 3, activation: "relu", padding: "same" }));
   model.add(tf.layers.maxPooling2d({ poolSize: 2, strides: 2 }));
@@ -455,8 +482,14 @@ async function initializeOcrModel() {
   return ocrModel;
 }
 
-async function preprocessImage(imagePath: string) {
+async function preprocessImage(fileName: string, baseDir: string) {
   const tf = await getTf();
+  const imagePath = resolveWithin(baseDir, fileName);
+
+  if (!isWithinAllowedRoots(imagePath, [PATHS.uploads, PATHS.trainingUploads, PATHS.rawUploads])) {
+    throw new Error("Invalid OCR image path.");
+  }
+
   const imageBuffer = fs.readFileSync(imagePath);
   const tfImage = tf.node.decodeImage(imageBuffer, 1);
   const resized = tf.image.resizeBilinear(tfImage, [IMAGE_SIZE, IMAGE_SIZE]);
@@ -476,7 +509,7 @@ async function preprocessCanvas(canvasDataUrl: string) {
   fs.writeFileSync(tempFile, Buffer.from(base64Data, "base64"));
 
   try {
-    return await preprocessImage(tempFile);
+    return await preprocessImage(path.basename(tempFile), PATHS.uploads);
   } finally {
     if (fs.existsSync(tempFile)) {
       fs.unlinkSync(tempFile);
@@ -505,6 +538,7 @@ async function recognizeTextFromTensor(imageTensor: import("@tensorflow/tfjs-nod
 
 const analysisCache = new Map<string, { value: unknown; createdAt: number }>();
 const rateLimiter = new Map<string, { count: number; resetAt: number }>();
+const scopedRateLimiter = new Map<string, { count: number; resetAt: number }>();
 
 const ANALYZE_CACHE_TTL_MS = Number(process.env.ANALYZE_CACHE_TTL_MS ?? DEFAULT_CONFIG.analyzeCacheTtlMs);
 const RATE_LIMIT_WINDOW_MS = 1000 * 60;
@@ -525,7 +559,7 @@ function loadTrainingImages() {
   try {
     const metadata = JSON.parse(fs.readFileSync(PATHS.trainingMetadata, "utf8")) as { images?: TrainingImage[] };
     const images = metadata.images ?? [];
-    trainingImages = images.filter((img) => fs.existsSync(path.join(PATHS.trainingUploads, img.filename)));
+    trainingImages = images.filter((img) => fs.existsSync(resolveWithin(PATHS.trainingUploads, img.filename)));
   } catch {
     trainingImages = [];
   }
@@ -563,6 +597,22 @@ function allowRateLimit(ip: string) {
   return true;
 }
 
+function allowScopedRateLimit(scope: string, ip: string, maxRequests: number, windowMs = RATE_LIMIT_WINDOW_MS) {
+  const now = Date.now();
+  const key = `${scope}:${ip}`;
+  const current = scopedRateLimiter.get(key);
+
+  if (!current || current.resetAt <= now) {
+    scopedRateLimiter.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (current.count >= maxRequests) return false;
+
+  current.count += 1;
+  return true;
+}
+
 async function fetchDictionarySuggestions(word: string): Promise<string[]> {
   const endpoint = `https://api.datamuse.com/words?max=3&sp=${encodeURIComponent(word)}&md=f`;
 
@@ -582,6 +632,13 @@ async function fetchDictionarySuggestions(word: string): Promise<string[]> {
 
 function configureRoutes(app: Express): Server {
   loadTrainingImages();
+
+  app.use("/api/ocr", (req, res, next) => {
+    if (!allowScopedRateLimit("ocr", getClientIp(req), 60)) {
+      return res.status(429).json({ success: false, message: "Too many OCR requests. Please retry in a minute." });
+    }
+    return next();
+  });
 
   const uploadRaw = multer({
     storage: multer.diskStorage({
@@ -765,11 +822,12 @@ function configureRoutes(app: Express): Server {
       return res.status(400).json({ success: false, message: "Image file and label are required" });
     }
 
+    const id = uuidv4();
     const imageRecord: TrainingImage = {
-      id: uuidv4(),
+      id,
       label: req.body.label,
       filename: req.file.filename,
-      path: `/api/ocr/training-image/${req.file.filename}`,
+      path: `/api/ocr/training-image/${id}`,
     };
 
     trainingImages.push(imageRecord);
@@ -782,8 +840,17 @@ function configureRoutes(app: Express): Server {
     res.json({ success: true, trainingImages });
   });
 
-  app.get("/api/ocr/training-image/:filename", (req, res) => {
-    const imagePath = path.join(PATHS.trainingUploads, req.params.filename);
+  app.get("/api/ocr/training-image/:id", (req, res) => {
+    if (!allowScopedRateLimit("ocr-training-image-read", getClientIp(req), 60)) {
+      return res.status(429).json({ success: false, message: "Too many requests. Please retry in a minute." });
+    }
+
+    const imageRecord = trainingImages.find((img) => img.id === req.params.id);
+    if (!imageRecord) {
+      return res.status(404).json({ success: false, message: "Training image not found" });
+    }
+
+    const imagePath = resolveWithin(PATHS.trainingUploads, imageRecord.filename);
     if (!fs.existsSync(imagePath)) {
       return res.status(404).json({ success: false, message: "Training image not found" });
     }
@@ -791,12 +858,16 @@ function configureRoutes(app: Express): Server {
   });
 
   app.delete("/api/ocr/training-image/:id", (req, res) => {
+    if (!allowScopedRateLimit("ocr-training-image-delete", getClientIp(req), 60)) {
+      return res.status(429).json({ success: false, message: "Too many requests. Please retry in a minute." });
+    }
+
     const imageRecord = trainingImages.find((img) => img.id === req.params.id);
     if (!imageRecord) {
       return res.status(404).json({ success: false, message: "Training image not found" });
     }
 
-    const imagePath = path.join(PATHS.trainingUploads, imageRecord.filename);
+    const imagePath = resolveWithin(PATHS.trainingUploads, imageRecord.filename);
     if (fs.existsSync(imagePath)) {
       fs.unlinkSync(imagePath);
     }
@@ -820,8 +891,7 @@ function configureRoutes(app: Express): Server {
         return res.status(404).json({ success: false, message: "Training image not found" });
       }
 
-      const imagePath = path.join(PATHS.trainingUploads, imageRecord.filename);
-      const tensor = await preprocessImage(imagePath);
+      const tensor = await preprocessImage(imageRecord.filename, PATHS.trainingUploads);
       await trainOnBatch([{ tensor, label }]);
       tensor.dispose();
 
@@ -840,7 +910,7 @@ function configureRoutes(app: Express): Server {
     try {
       const batchData = await Promise.all(
         trainingImages.map(async (img) => {
-          const tensor = await preprocessImage(path.join(PATHS.trainingUploads, img.filename));
+          const tensor = await preprocessImage(img.filename, PATHS.trainingUploads);
           return { tensor, label: img.label };
         }),
       );
@@ -858,14 +928,19 @@ function configureRoutes(app: Express): Server {
   });
 
   app.post("/api/ocr/recognize", uploadRaw.single("image"), async (req, res) => {
+    if (!allowScopedRateLimit("ocr-recognize", getClientIp(req), 60)) {
+      return res.status(429).json({ success: false, message: "Too many OCR requests. Please retry in a minute." });
+    }
+
     try {
       if (req.file?.path) {
-        const tensor = await preprocessImage(req.file.path);
+        const safeUploadedPath = resolveWithin(PATHS.rawUploads, path.basename(req.file.path));
+        const tensor = await preprocessImage(path.basename(safeUploadedPath), PATHS.rawUploads);
         const text = await recognizeTextFromTensor(tensor);
         tensor.dispose();
 
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
+        if (fs.existsSync(safeUploadedPath)) {
+          fs.unlinkSync(safeUploadedPath);
         }
 
         return res.json({ success: true, text });
@@ -970,13 +1045,16 @@ async function setupVite(app: Express, server: Server) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
       },
     },
   });
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
+    if (!allowScopedRateLimit("vite-page", getClientIp(req), 240)) {
+      return res.status(429).json({ message: "Too many page requests. Please retry shortly." });
+    }
+
     try {
       const clientTemplate = path.resolve(APP_ROOT, "client", "index.html");
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
@@ -998,7 +1076,11 @@ function serveStatic(app: Express) {
   }
 
   app.use(express.static(distPath));
-  app.use("*", (_req, res) => {
+  app.use("*", (req, res) => {
+    if (!allowScopedRateLimit("static-page", getClientIp(req), 240)) {
+      return res.status(429).json({ message: "Too many page requests. Please retry shortly." });
+    }
+
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
@@ -1013,21 +1095,11 @@ export async function startServer() {
   app.use((req, res, next) => {
     const start = Date.now();
     const pathName = req.path;
-    let capturedJsonResponse: Record<string, unknown> | undefined;
-
-    const originalResJson = res.json.bind(res);
-    res.json = ((body: unknown) => {
-      capturedJsonResponse = body as Record<string, unknown>;
-      return originalResJson(body);
-    }) as typeof res.json;
 
     res.on("finish", () => {
       const duration = Date.now() - start;
       if (pathName.startsWith("/api")) {
         let logLine = `${req.method} ${pathName} ${res.statusCode} in ${duration}ms`;
-        if (capturedJsonResponse) {
-          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-        }
 
         if (logLine.length > 200) {
           logLine = `${logLine.slice(0, 199)}…`;
@@ -1038,6 +1110,13 @@ export async function startServer() {
     });
 
     next();
+  });
+
+  app.use((req, res, next) => {
+    if (!req.path.startsWith("/api") && !allowScopedRateLimit("pages", getClientIp(req), 240)) {
+      return res.status(429).json({ message: "Too many page requests. Please retry shortly." });
+    }
+    return next();
   });
 
   const server = configureRoutes(app);
@@ -1059,10 +1138,9 @@ export async function startServer() {
     {
       port: PORT,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
-      log(`DyslexiaSupportCopy started on http://localhost:${PORT}`, "startup");
+      log(`DyslexiaDrawNote started on http://localhost:${PORT}`, "startup");
       log(`Mode=${IS_PRODUCTION ? "production" : "development"}`, "startup");
     },
   );
