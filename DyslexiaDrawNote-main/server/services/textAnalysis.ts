@@ -49,8 +49,7 @@ const COMMON_CORRECTIONS: Record<string, string> = {
 };
 
 const CONFUSION_PATTERNS: Array<{ pattern: RegExp; recommendation: string; confidence: number }> = [
-  { pattern: /\b(bd|db|pq|qp)\b/i, recommendation: "Check letter orientation (b/d or p/q).", confidence: 0.78 },
-  { pattern: /ie(?!f)/i, recommendation: "Review i/e ordering in this word.", confidence: 0.58 },
+  { pattern: /(bd|db|pq|qp)/i, recommendation: "Check letter orientation (b/d or p/q).", confidence: 0.78 },
   { pattern: /(.)\1\1+/i, recommendation: "Repeated letters may be accidental.", confidence: 0.66 },
 ];
 
@@ -140,7 +139,9 @@ export const analyzeText = (text: string, options: AnalysisOptions = {}): Analys
     }
   }
 
-  const filteredAnnotations = annotations.filter((item) => item.confidence >= minConfidence);
+  const filteredAnnotations = annotations
+    .filter((item) => item.confidence >= minConfidence)
+    .sort((a, b) => a.start - b.start);
   const totalWords = words.length;
   const flaggedWords = new Set(filteredAnnotations.map((item) => `${item.start}-${item.end}`)).size;
   const likelyCorrectWords = Math.max(totalWords - flaggedWords, 0);
@@ -179,11 +180,17 @@ export const evaluateAnalysisSamples = (samples: EvaluationSample[]) => {
       foundRecommendations.some((found) => found.includes(expected.toLowerCase())),
     );
 
+    const unexpectedFlags = sample.expectedCorrections.length === 0 ? result.annotations.length : 0;
     return {
       text: sample.text,
       expected: sample.expectedCorrections.length,
       matched: expectedMatches.length,
-      score: sample.expectedCorrections.length === 0 ? 1 : expectedMatches.length / sample.expectedCorrections.length,
+      score:
+        sample.expectedCorrections.length === 0
+          ? unexpectedFlags === 0
+            ? 1
+            : 0
+          : expectedMatches.length / sample.expectedCorrections.length,
     };
   });
 

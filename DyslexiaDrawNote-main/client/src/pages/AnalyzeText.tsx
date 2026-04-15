@@ -31,6 +31,11 @@ interface AnalysisPayload {
   externalSuggestions: Record<string, string[]>;
 }
 
+const ANALYSIS_DEBOUNCE_MS = 700;
+const PROGRESS_TARGET_MAX = 85;
+const PROGRESS_INCREMENT = 8;
+const PROGRESS_INTERVAL_MS = 120;
+
 const AnalyzeText = () => {
   const [text, setText] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisPayload | null>(null);
@@ -74,8 +79,8 @@ const AnalyzeText = () => {
       setLoading(true);
       setProgress(20);
       const interval = window.setInterval(() => {
-        setProgress((prev) => (prev < 85 ? prev + 8 : prev));
-      }, 120);
+        setProgress((prev) => (prev < PROGRESS_TARGET_MAX ? prev + PROGRESS_INCREMENT : prev));
+      }, PROGRESS_INTERVAL_MS);
 
       try {
         const response = await fetch("/api/analyze", {
@@ -104,7 +109,7 @@ const AnalyzeText = () => {
         window.clearInterval(interval);
         setLoading(false);
       }
-    }, 700);
+    }, ANALYSIS_DEBOUNCE_MS);
 
     return () => window.clearTimeout(debounceRef.current);
   }, [cacheKey, text, threshold, useDictionary]);
@@ -115,10 +120,7 @@ const AnalyzeText = () => {
     const segments: Array<{ value: string; flagged: boolean; id: string }> = [];
     let cursor = 0;
 
-    analysis.analysis.annotations
-      .slice()
-      .sort((a, b) => a.start - b.start)
-      .forEach((annotation, index) => {
+    analysis.analysis.annotations.forEach((annotation, index) => {
         if (annotation.start > cursor) {
           segments.push({ value: text.slice(cursor, annotation.start), flagged: false, id: `plain-${index}` });
         }

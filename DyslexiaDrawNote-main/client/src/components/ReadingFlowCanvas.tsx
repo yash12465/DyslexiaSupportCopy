@@ -6,23 +6,28 @@ interface ReadingFlowCanvasProps {
   wordSpacing: number;
   lineHeight: number;
   backgroundColor: string;
+  maxWords?: number;
 }
+
+const DEFAULT_MAX_CANVAS_WORDS = 120;
+const DEFAULT_CANVAS_WIDTH = 900;
+const MIN_CANVAS_WIDTH = 360;
 
 const splitSyllables = (word: string) => {
   const parts = word.match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy](?=$|[^aeiouy]))?/gi);
   return parts && parts.length ? parts : [word];
 };
 
-const ReadingFlowCanvas = ({ text, fontSize, wordSpacing, lineHeight, backgroundColor }: ReadingFlowCanvasProps) => {
+const ReadingFlowCanvas = ({ text, fontSize, wordSpacing, lineHeight, backgroundColor, maxWords = DEFAULT_MAX_CANVAS_WORDS }: ReadingFlowCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const words = useMemo(() => text.trim().split(/\s+/).filter(Boolean).slice(0, 120), [text]);
+  const words = useMemo(() => text.trim().split(/\s+/).filter(Boolean).slice(0, maxWords), [maxWords, text]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const parentWidth = canvas.parentElement?.clientWidth ?? 900;
-    canvas.width = Math.max(parentWidth, 360);
+    const parentWidth = canvas.parentElement?.clientWidth ?? DEFAULT_CANVAS_WIDTH;
+    canvas.width = Math.max(parentWidth, MIN_CANVAS_WIDTH);
     canvas.height = 300;
 
     const ctx = canvas.getContext("2d");

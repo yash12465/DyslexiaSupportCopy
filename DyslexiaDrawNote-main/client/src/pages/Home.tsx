@@ -17,7 +17,11 @@ const Home = () => {
     if (!notes) return [];
 
     return [...notes]
-      .sort((a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime())
+      .sort((a, b) => {
+        const bDate = b.updatedAt ?? b.createdAt ?? new Date();
+        const aDate = a.updatedAt ?? a.createdAt ?? new Date();
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+      })
       .filter((note) => {
         if (!query) return true;
         const lowered = query.toLowerCase();

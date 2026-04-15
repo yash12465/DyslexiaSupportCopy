@@ -15,6 +15,8 @@ const rateLimiter = new Map<string, { count: number; resetAt: number }>();
 const ANALYZE_CACHE_TTL_MS = 1000 * 60 * 30;
 const RATE_LIMIT_WINDOW_MS = 1000 * 60;
 const RATE_LIMIT_MAX_REQUESTS = Number(process.env.ANALYZE_RATE_LIMIT_MAX ?? 30);
+const MAX_ANALYSIS_TEXT_LENGTH = 10000;
+const DICTIONARY_API_TIMEOUT_MS = 1000;
 
 function pruneAnalysisCache() {
   const now = Date.now();
@@ -51,7 +53,7 @@ async function fetchDictionarySuggestions(word: string): Promise<string[]> {
 
   try {
     const response = await fetch(endpoint, {
-      signal: AbortSignal.timeout(1800),
+      signal: AbortSignal.timeout(DICTIONARY_API_TIMEOUT_MS),
     });
 
     if (!response.ok) return [];
@@ -164,8 +166,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ message: "Text is required for analysis." });
     }
 
-    if (text.length > 10000) {
-      return res.status(413).json({ message: "Text payload is too large. Max 10,000 characters." });
+    if (text.length > MAX_ANALYSIS_TEXT_LENGTH) {
+      return res.status(413).json({ message: `Text payload is too large. Max ${MAX_ANALYSIS_TEXT_LENGTH.toLocaleString("en-US")} characters.` });
     }
 
     const cacheKey = getAnalysisCacheKey(text, { minConfidence, includeExternalSuggestions });

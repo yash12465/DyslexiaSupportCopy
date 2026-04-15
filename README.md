@@ -10,12 +10,12 @@ Modern dyslexia-support web app with:
 
 ## Project path
 
-Main app: `/home/runner/work/DyslexiaSupportCopy/DyslexiaSupportCopy/DyslexiaDrawNote-main`
+Main app: `./DyslexiaDrawNote-main`
 
 ## Local setup
 
 ```bash
-cd /home/runner/work/DyslexiaSupportCopy/DyslexiaSupportCopy/DyslexiaDrawNote-main
+cd DyslexiaDrawNote-main
 npm install --ignore-scripts
 npm run dev
 ```
@@ -64,7 +64,7 @@ No API keys are required for default local development.
 ## Testing
 
 ```bash
-cd /home/runner/work/DyslexiaSupportCopy/DyslexiaSupportCopy/DyslexiaDrawNote-main
+cd DyslexiaDrawNote-main
 npm run test
 ```
 
