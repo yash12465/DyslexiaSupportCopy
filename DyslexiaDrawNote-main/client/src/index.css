@@ -7,35 +7,35 @@
 
 @layer base {
   :root {
-    --background: 0 0% 97.3%;
-    --foreground: 0 0% 20%;
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 20%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 20%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 204 62% 52%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 154 54% 62%;
-    --secondary-foreground: 0 0% 20%;
+    --secondary: 189 94% 43%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 280 61% 63%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 199 89% 48%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 63.9%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   * {
@@ -44,57 +44,28 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'OpenDyslexic', sans-serif;
-    letter-spacing: 0.5px;
-    line-height: 1.6;
-  }
-
-  .font-dyslexic {
-    font-family: 'OpenDyslexic', sans-serif;
-  }
-
-  .font-inter {
     font-family: 'Inter', sans-serif;
+    letter-spacing: 0.01em;
+    line-height: 1.55;
+  }
+
+  body.font-dyslexic-enabled {
+    font-family: 'OpenDyslexic', sans-serif;
+  }
+
+  body.readable-spacing {
+    line-height: 1.8;
+  }
+
+  body.high-contrast {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --primary: 230 100% 40%;
+    --border: 0 0% 35%;
   }
 
   .canvas-container {
     touch-action: none;
     position: relative;
-  }
-
-  .color-swatch {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 2px solid #F8F9FA;
-    transition: transform 0.2s ease;
-  }
-  
-  .color-swatch:hover {
-    transform: scale(1.1);
-  }
-  
-  .color-swatch.active {
-    border: 3px solid #333333;
-  }
-
-  .pen-size {
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    border-radius: 4px;
-    padding: 0 8px;
-  }
-  
-  .pen-size.active {
-    background-color: rgba(45, 156, 219, 0.2);
-  }
-
-  .pen-size-circle {
-    background-color: #333;
-    border-radius: 50%;
   }
 }

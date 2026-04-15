@@ -2,29 +2,13 @@ import { Link } from "wouter";
 
 const Footer = () => {
   return (
-    <footer className="bg-white py-4 px-6 mt-8 border-t border-gray-200">
-      <div className="container mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <p className="font-dyslexic text-gray-600 mb-4 md:mb-0">
-            © {new Date().getFullYear()} DyslexiNote - Accessible Note-Taking App
-          </p>
-          <div className="flex items-center space-x-4">
-            <Link href="/help">
-              <span className="text-gray-600 hover:text-primary transition font-inter cursor-pointer">
-                Help
-              </span>
-            </Link>
-            <Link href="/privacy">
-              <span className="text-gray-600 hover:text-primary transition font-inter cursor-pointer">
-                Privacy
-              </span>
-            </Link>
-            <Link href="/terms">
-              <span className="text-gray-600 hover:text-primary transition font-inter cursor-pointer">
-                Terms
-              </span>
-            </Link>
-          </div>
+    <footer className="mt-8 border-t border-slate-200 bg-white">
+      <div className="container mx-auto flex flex-col gap-3 px-4 py-5 text-sm text-slate-600 md:flex-row md:items-center md:justify-between">
+        <p>© {new Date().getFullYear()} DyslexiaSupportCopy · Accessible reading and writing support.</p>
+        <div className="flex gap-4">
+          <Link href="/analyze" className="hover:text-blue-600">Analyze</Link>
+          <Link href="/tools" className="hover:text-blue-600">Tools</Link>
+          <Link href="/about" className="hover:text-blue-600">About</Link>
         </div>
       </div>
     </footer>

@@ -1,53 +1,74 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, ArrowLeft, Brain } from "lucide-react";
+import { Contrast, Type, PlusCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
-const Header = () => {
+interface HeaderProps {
+  highContrast: boolean;
+  dyslexicFont: boolean;
+  readableSpacing: boolean;
+  onToggleHighContrast: (value: boolean) => void;
+  onToggleDyslexicFont: (value: boolean) => void;
+  onToggleReadableSpacing: (value: boolean) => void;
+}
+
+const links = [
+  { href: "/", label: "Home" },
+  { href: "/analyze", label: "Analyze Text" },
+  { href: "/tools", label: "Tools" },
+  { href: "/about", label: "About" },
+];
+
+const Header = ({
+  highContrast,
+  dyslexicFont,
+  readableSpacing,
+  onToggleHighContrast,
+  onToggleDyslexicFont,
+  onToggleReadableSpacing,
+}: HeaderProps) => {
   const [location, navigate] = useLocation();
-  const isNoteView = location.startsWith('/note');
-  const isTrainingView = location.startsWith('/training');
 
   return (
-    <header className="bg-white shadow-md py-4 px-6 mb-6">
-      <div className="container mx-auto flex justify-between items-center">
-        <div className="flex items-center">
-          <Link href="/">
-            <h1 className="text-3xl font-bold text-primary font-dyslexic cursor-pointer">
-              DyslexiNote
-            </h1>
-          </Link>
-        </div>
-        <nav className="hidden md:flex space-x-6 items-center mr-4">
-          <div className={`text-lg ${location === '/' ? 'font-bold text-primary' : 'text-gray-600 hover:text-primary'}`}>
-            <Link href="/">Home</Link>
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center justify-between gap-3">
+            <Link href="/" className="text-xl font-bold tracking-tight text-slate-900">
+              DyslexiaSupportCopy
+            </Link>
+            <Button onClick={() => navigate("/note")} size="sm" className="lg:hidden"><PlusCircle className="mr-1 h-4 w-4" />New</Button>
           </div>
-          <div className={`text-lg ${location === '/training' ? 'font-bold text-primary' : 'text-gray-600 hover:text-primary'}`}>
-            <Link href="/training">OCR Training</Link>
+
+          <nav className="flex flex-wrap gap-3" aria-label="Main navigation">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`rounded-full px-3 py-1.5 text-sm transition ${location === link.href ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5">
+              <Contrast className="h-4 w-4" />
+              <Label htmlFor="contrast" className="text-xs">High contrast</Label>
+              <Switch id="contrast" checked={highContrast} onCheckedChange={onToggleHighContrast} />
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5">
+              <Type className="h-4 w-4" />
+              <Label htmlFor="font" className="text-xs">Dyslexic font</Label>
+              <Switch id="font" checked={dyslexicFont} onCheckedChange={onToggleDyslexicFont} />
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5">
+              <Label htmlFor="spacing" className="text-xs">Readable spacing</Label>
+              <Switch id="spacing" checked={readableSpacing} onCheckedChange={onToggleReadableSpacing} />
+            </div>
           </div>
-        </nav>
-        <div className="flex items-center space-x-4">
-          {isNoteView ? (
-            <Button
-              onClick={() => navigate('/')}
-              className="font-dyslexic text-lg font-semibold"
-            >
-              <ArrowLeft className="mr-2 h-5 w-5" /> Back to Home
-            </Button>
-          ) : isTrainingView ? (
-            <Button
-              onClick={() => navigate('/')}
-              className="font-dyslexic text-lg font-semibold"
-            >
-              <ArrowLeft className="mr-2 h-5 w-5" /> Back to Home
-            </Button>
-          ) : (
-            <Button
-              onClick={() => navigate('/note')}
-              className="font-dyslexic text-lg font-semibold"
-            >
-              <PlusCircle className="mr-2 h-5 w-5" /> New Note
-            </Button>
-          )}
         </div>
       </div>
     </header>
