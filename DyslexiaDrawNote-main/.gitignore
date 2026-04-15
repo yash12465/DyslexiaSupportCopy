@@ -49,6 +49,7 @@ __pycache__/
 
 # Model & large binary outputs
 ocr-model/
+model-cache/
 ocr-training-data/
 attached_assets/
 uploads/
@@ -66,6 +67,10 @@ checkpoint/
 logs/
 *.log
 nohup.out
+
+# Local zero-config runtime folders
+config/
+data/
 
 # Images generated during testing/training
 *.png

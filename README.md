@@ -12,15 +12,33 @@ Modern dyslexia-support web app with:
 
 Main app: `./DyslexiaDrawNote-main`
 
-## Local setup
+## macOS quick start (zero-config)
+
+Install (one command):
 
 ```bash
-cd DyslexiaDrawNote-main
-npm install --ignore-scripts
-npm run dev
+cd DyslexiaDrawNote-main && npm install --ignore-scripts
+```
+
+(`--ignore-scripts` keeps install stable on macOS when optional native postinstall steps are unavailable; runtime still works.)
+
+Run (one command):
+
+```bash
+cd DyslexiaDrawNote-main && npm run run
 ```
 
 Open `http://localhost:5000`.
+
+On first launch, the app auto-creates required runtime paths and defaults if missing:
+
+- `uploads/raw`
+- `uploads/training/metadata.json`
+- `ocr-model`
+- `model-cache`
+- `logs`
+- `data`
+- `config/defaults.json`
 
 ## Automatic analysis flow
 
@@ -58,6 +76,7 @@ Returns free no-key suggestions via Datamuse.
 ## Environment variables
 
 - `ANALYZE_RATE_LIMIT_MAX` (optional, default `30`): max analyze requests per minute per IP.
+- `OPENAI_API_KEY` (optional): if missing, app starts normally and logs that OpenAI-based features are disabled.
 
 No API keys are required for default local development.
 

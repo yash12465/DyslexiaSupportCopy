@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeText, evaluateAnalysisSamples, normalizeText } from "../services/textAnalysis";
+import { analyzeText, evaluateAnalysisSamples, normalizeText } from "../../app";
 
 test("normalizeText compacts whitespace and punctuation variants", () => {
   const normalized = normalizeText("  Teh   quick  fox\n\nsaid “hello”  ");
