@@ -1,90 +1,75 @@
 # DyslexiaSupportCopy
 
-Modern dyslexia-support web app with:
+AI-powered dyslexia support web app with:
 
-- Automatic text analysis (`/analyze`) with debounce, explainability, confidence thresholds, and cache-aware results
-- Accessible UI controls: high-contrast mode, dyslexia-friendly font toggle, readable spacing
-- Canvas visualization tools for reading flow and syllable segmentation preview
-- Free resource hub and no-key dictionary suggestions
-- API endpoint for stable analysis integration: `POST /api/analyze`
+- **AI Assistant page (`/ai`)** with:
+  - ask-a-question search/chat
+  - voice input assistant (speech-to-text)
+  - text-to-speech read aloud controls
+  - OCR image scan + AI cleanup
+  - top-input/bottom-output writing support with auto-correction updates
+- Existing text analysis page (`/analyze`) and note/canvas tools
 
 ## Project path
 
 Main app: `./DyslexiaDrawNote-main`
 
-## macOS quick start (zero-config)
-
-Install (one command):
+## Local setup
 
 ```bash
-cd DyslexiaDrawNote-main && npm install --ignore-scripts
+cd DyslexiaDrawNote-main
+npm install --ignore-scripts
+cp .env.example .env
 ```
 
-(`--ignore-scripts` keeps install stable on macOS when optional native postinstall steps are unavailable; runtime still works.)
-
-Run (one command):
+Set `GEMINI_API_KEY` in `.env`, then run:
 
 ```bash
-cd DyslexiaDrawNote-main && npm run run
+npm run dev
 ```
 
 Open `http://localhost:5000`.
 
-On first launch, the app auto-creates required runtime paths and defaults if missing:
-
-- `uploads/raw`
-- `uploads/training/metadata.json`
-- `ocr-model`
-- `model-cache`
-- `logs`
-- `data`
-- `config/defaults.json`
-
-## Automatic analysis flow
-
-1. User types or pastes text on **Analyze Text** page.
-2. Frontend debounces input (~700ms).
-3. Client checks in-memory cache for repeated input.
-4. If not cached, UI calls `POST /api/analyze` with configurable `minConfidence`.
-5. API normalizes/tokenizes text, runs pattern-based dyslexia analysis, returns:
-   - confidence annotations
-   - highlighted recommendations
-   - readability and estimated accuracy scores
-   - optional free dictionary enrichments
-6. UI shows progress, highlights, and timestamp.
-
-## API
-
-### `POST /api/analyze`
-
-Body:
-
-```json
-{
-  "text": "Teh freind wrote a note",
-  "minConfidence": 0.55,
-  "includeExternalSuggestions": false
-}
-```
-
-Response includes `analysis`, `analyzedAt`, `cached`, and optional `externalSuggestions`.
-
-### `GET /api/dictionary?word=<term>`
-
-Returns free no-key suggestions via Datamuse.
-
 ## Environment variables
 
-- `ANALYZE_RATE_LIMIT_MAX` (optional, default `30`): max analyze requests per minute per IP.
-- `OPENAI_API_KEY` (optional): if missing, app starts normally and logs that OpenAI-based features are disabled.
+Required for AI routes:
 
-No API keys are required for default local development.
+- `GEMINI_API_KEY` – server-side Gemini key (never commit real keys)
+
+Optional:
+
+- `GEMINI_MODEL` (default: `gemini-2.0-flash`)
+- `GEMINI_TIMEOUT_MS` (default: `12000`)
+- `GEMINI_RETRY_COUNT` (default: `1`)
+- `ANALYZE_RATE_LIMIT_MAX` (default: `30`)
+
+## AI API endpoints
+
+- `POST /api/ai/ask`
+- `POST /api/ai/writing`
+- `POST /api/ai/correct`
+- `POST /api/ai/ocr-cleanup`
+
+All Gemini calls are routed through backend endpoints. No client-side API key is used.
+
+## Key flows to test
+
+1. Ask a question on `/ai` and verify answer history appears.
+2. Type in writing workspace top box and verify corrected text updates in bottom box.
+3. Start voice assistant and ask a question by microphone.
+4. Use Read Aloud controls (play/pause/resume/stop, speed, voice).
+5. Upload an image in OCR section and compare raw vs corrected text.
+
+## Browser support notes
+
+- **SpeechRecognition / webkitSpeechRecognition** support varies by browser.
+- **SpeechSynthesis** voices/features vary by OS/browser.
+- When unsupported, the UI shows fallback messages and keeps app usable.
 
 ## Testing
 
 ```bash
 cd DyslexiaDrawNote-main
 npm run test
+npm run build
 ```
-
-CI workflow (`.github/workflows/ci.yml`) installs deps, runs tests, and builds the app.
