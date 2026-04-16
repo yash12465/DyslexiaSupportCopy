@@ -12,7 +12,11 @@ test("Gemini service returns configuration message when API key is missing", asy
   assert.equal(response.ok, false);
   assert.match(response.message, /not configured/i);
 
-  process.env.GEMINI_API_KEY = previous;
+  if (previous === undefined) {
+    delete process.env.GEMINI_API_KEY;
+  } else {
+    process.env.GEMINI_API_KEY = previous;
+  }
 });
 
 test("Gemini service retries transient failure and normalizes output", async () => {
@@ -51,5 +55,45 @@ test("Gemini service retries transient failure and normalizes output", async () 
   assert.match(response.result!.text, /Corrected text/);
   assert.equal(response.result!.suggestions.length > 0, true);
 
-  process.env.GEMINI_API_KEY = previous;
+  if (previous === undefined) {
+    delete process.env.GEMINI_API_KEY;
+  } else {
+    process.env.GEMINI_API_KEY = previous;
+  }
+});
+
+test("Gemini service supports correction and OCR cleanup methods", async () => {
+  const previous = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "test-key";
+
+  const service = new GeminiAiService({
+    fetchImpl: (async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [{ text: "Cleaned sample output" }],
+              },
+            },
+          ],
+        }),
+      }) as Response) as typeof fetch,
+  });
+
+  const corrected = await service.correctWriting("teh student are happy");
+  const cleaned = await service.cleanupOcrText("T hi s is 0CR");
+
+  assert.equal(corrected.ok, true);
+  assert.equal(cleaned.ok, true);
+  assert.equal(corrected.result?.task, "correction");
+  assert.equal(cleaned.result?.task, "ocr-cleanup");
+
+  if (previous === undefined) {
+    delete process.env.GEMINI_API_KEY;
+  } else {
+    process.env.GEMINI_API_KEY = previous;
+  }
 });
