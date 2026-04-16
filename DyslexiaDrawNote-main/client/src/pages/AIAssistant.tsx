@@ -248,7 +248,7 @@ const AIAssistant = () => {
             {writingTips.length > 0 && (
               <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
                 {writingTips.slice(0, 3).map((tip, index) => (
-                  <li key={`${tip}-${index}`}>{tip}</li>
+                  <li key={`tip-${index}`}>{tip}</li>
                 ))}
               </ul>
             )}
@@ -267,7 +267,7 @@ const AIAssistant = () => {
         {askError && <p className="mt-2 text-sm text-red-600">{askError}</p>}
         <div className="mt-4 space-y-3">
           {history.map((item, index) => (
-            <div key={`${item.question}-${index}`} className="rounded-lg border border-slate-200 p-3">
+            <div key={`qa-${index}`} className="rounded-lg border border-slate-200 p-3">
               <p className="text-sm font-semibold text-slate-900">Q: {item.question}</p>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{item.answer}</p>
             </div>
