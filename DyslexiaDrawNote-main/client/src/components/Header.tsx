@@ -15,6 +15,7 @@ interface HeaderProps {
 
 const links = [
   { href: "/", label: "Home" },
+  { href: "/ai", label: "AI Assistant" },
   { href: "/analyze", label: "Analyze Text" },
   { href: "/tools", label: "Tools" },
   { href: "/about", label: "About" },

@@ -37,6 +37,7 @@ const Home = () => {
           Analyze text in real time, visualize reading flow on canvas, and fine-tune dyslexia-friendly formatting with built-in accessibility controls.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
+          <Button className="bg-white text-blue-700 hover:bg-blue-50" onClick={() => navigate("/ai")}>Open AI Assistant</Button>
           <Button className="bg-white text-blue-700 hover:bg-blue-50" onClick={() => navigate("/analyze")}>Analyze Text</Button>
           <Button variant="outline" className="border-white/60 text-white hover:bg-white/10" onClick={() => navigate("/tools")}>Open Tools</Button>
         </div>

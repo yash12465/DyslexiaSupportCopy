@@ -11,6 +11,7 @@ import Training from "@/pages/Training";
 import AnalyzeText from "@/pages/AnalyzeText";
 import Tools from "@/pages/Tools";
 import About from "@/pages/About";
+import AIAssistant from "@/pages/AIAssistant";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -38,6 +39,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/analyze" component={AnalyzeText} />
+          <Route path="/ai" component={AIAssistant} />
           <Route path="/tools" component={Tools} />
           <Route path="/about" component={About} />
           <Route path="/note/:id?" component={Note} />

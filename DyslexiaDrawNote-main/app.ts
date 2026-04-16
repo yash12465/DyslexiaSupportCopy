@@ -10,6 +10,7 @@ import { fileURLToPath } from "url";
 import { createServer as createViteServer, createLogger } from "vite";
 import { nanoid } from "nanoid";
 import { v4 as uuidv4 } from "uuid";
+import { geminiAiService } from "./server/services/aiService";
 
 /**
  * ------------------------------------------------------------
@@ -104,8 +105,8 @@ function ensureStartupFilesAndDirectories() {
     log("Created training metadata: uploads/training/metadata.json", "startup");
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    log("OPENAI_API_KEY not set. Optional OpenAI features stay disabled.", "startup");
+  if (!process.env.GEMINI_API_KEY) {
+    log("GEMINI_API_KEY not set. AI assistant routes will return configuration errors.", "startup");
   }
 }
 
@@ -794,6 +795,77 @@ function configureRoutes(app: Express): Server {
 
     const suggestions = await fetchDictionarySuggestions(word);
     return res.json({ word, suggestions });
+  });
+
+  app.post("/api/ai/ask", async (req, res) => {
+    const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+    const history = Array.isArray(req.body?.history)
+      ? req.body.history.filter((item): item is string => typeof item === "string").slice(-10)
+      : [];
+
+    if (!question) {
+      return res.status(400).json({ success: false, message: "Please enter a question." });
+    }
+
+    if (question.length > 2000) {
+      return res.status(413).json({ success: false, message: "Question is too long. Please keep it under 2000 characters." });
+    }
+
+    const response = await geminiAiService.askQuestion(question, history);
+    if (!response.ok || !response.result) {
+      return res.status(503).json({ success: false, message: response.message });
+    }
+
+    return res.json({ success: true, result: response.result });
+  });
+
+  app.post("/api/ai/writing", async (req, res) => {
+    const text = typeof req.body?.text === "string" ? req.body.text : "";
+
+    if (!text.trim()) {
+      return res.status(400).json({ success: false, message: "Please type something first." });
+    }
+
+    if (text.length > 4000) {
+      return res.status(413).json({ success: false, message: "Text is too long. Please keep it under 4000 characters." });
+    }
+
+    const response = await geminiAiService.predictWriting(text);
+    if (!response.ok || !response.result) {
+      return res.status(503).json({ success: false, message: response.message });
+    }
+
+    return res.json({ success: true, result: response.result });
+  });
+
+  app.post("/api/ai/correct", async (req, res) => {
+    const text = typeof req.body?.text === "string" ? req.body.text : "";
+
+    if (!text.trim()) {
+      return res.status(400).json({ success: false, message: "Please provide text to correct." });
+    }
+
+    const response = await geminiAiService.correctWriting(text);
+    if (!response.ok || !response.result) {
+      return res.status(503).json({ success: false, message: response.message });
+    }
+
+    return res.json({ success: true, result: response.result });
+  });
+
+  app.post("/api/ai/ocr-cleanup", async (req, res) => {
+    const text = typeof req.body?.text === "string" ? req.body.text : "";
+
+    if (!text.trim()) {
+      return res.status(400).json({ success: false, message: "No OCR text found to clean." });
+    }
+
+    const response = await geminiAiService.cleanupOcrText(text);
+    if (!response.ok || !response.result) {
+      return res.status(503).json({ success: false, message: response.message });
+    }
+
+    return res.json({ success: true, result: response.result });
   });
 
   // OCR routes (optional feature)
