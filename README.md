@@ -35,6 +35,7 @@ Open `http://localhost:5000`.
 Required for AI routes:
 
 - `GEMINI_API_KEY` – server-side Gemini key (never commit real keys)
+- `GROQ_API_KEY` – server-side Groq key for the text normalization endpoint (never commit real keys)
 
 Optional:
 
@@ -42,6 +43,10 @@ Optional:
 - `GEMINI_TIMEOUT_MS` (default: `12000`)
 - `GEMINI_RETRY_COUNT` (default: `1`)
 - `ANALYZE_RATE_LIMIT_MAX` (default: `30`)
+- `GROQ_MODEL` (default: `llama3-8b-8192`) — also accepts `llama3-70b-8192`, `mixtral-8x7b-32768`
+- `GROQ_TIMEOUT_MS` (default: `12000`)
+- `GROQ_RETRY_COUNT` (default: `1`)
+- `TEXT_PROCESS_RATE_LIMIT_MAX` (default: `30`)
 
 ## AI API endpoints
 
@@ -51,6 +56,46 @@ Optional:
 - `POST /api/ai/ocr-cleanup`
 
 All Gemini calls are routed through backend endpoints. No client-side API key is used.
+
+## Text normalization endpoint
+
+### `POST /api/text/process`
+
+Detects dyslexic misspellings and returns normalized text.
+Processing uses Groq LLM when `GROQ_API_KEY` is configured, with automatic fallback to a
+local deterministic correction layer so the endpoint always returns useful output.
+
+**Request**
+
+```json
+{ "text": "Teh freind definately recieve teh lettr." }
+```
+
+**Response**
+
+```json
+{
+  "originalText":       "Teh freind definately recieve teh lettr.",
+  "normalizedText":     "The friend definitely receive the letter.",
+  "correctionsApplied": true,
+  "provider":           "groq",
+  "processedAt":        "2025-01-01T12:00:00.000Z"
+}
+```
+
+`provider` values:
+- `"groq"` — Groq LLM corrected the text
+- `"local"` — deterministic local dictionary corrected the text (Groq not configured or unavailable)
+- `"none"` — no corrections needed
+
+**Errors**
+
+| Status | Condition |
+|--------|-----------|
+| 400    | Missing or empty `text` field |
+| 413    | `text` exceeds 5 000 characters |
+| 429    | Rate limit exceeded (30 req/min per IP by default) |
+| 500    | Unexpected server error |
 
 ## Key flows to test
 

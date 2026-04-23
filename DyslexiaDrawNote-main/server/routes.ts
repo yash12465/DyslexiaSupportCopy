@@ -73,6 +73,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.warn("OCR routes disabled: TensorFlow native module unavailable.", error);
   }
 
+  const { default: textRoutes } = await import("./routes/textRoutes");
+  app.use("/api/text", textRoutes);
+
   app.get("/api/notes", async (_req, res) => {
     try {
       const notes = await storage.getAllNotes();
