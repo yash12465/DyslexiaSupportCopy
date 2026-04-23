@@ -55,7 +55,7 @@ router.post("/process", async (req: Request, res: Response) => {
 
   const text = typeof req.body?.text === "string" ? req.body.text : null;
 
-  if (text === null || text === undefined) {
+  if (text === null) {
     return res.status(400).json({ message: "Request body must include a 'text' field." });
   }
 

@@ -93,7 +93,7 @@ local deterministic correction layer so the endpoint always returns useful outpu
 | Status | Condition |
 |--------|-----------|
 | 400    | Missing or empty `text` field |
-| 413    | `text` exceeds 5 000 characters |
+| 413    | `text` exceeds 5000 characters |
 | 429    | Rate limit exceeded (30 req/min per IP by default) |
 | 500    | Unexpected server error |
 

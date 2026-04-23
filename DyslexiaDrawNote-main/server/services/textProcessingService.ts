@@ -23,7 +23,6 @@ const LOCAL_CORRECTIONS: Record<string, string> = {
   tihs: "this",
   thsi: "this",
   forme: "from",
-  form: "from",
   od: "do",
   doe: "do",
   // Common phonetic / confusion spellings
